@@ -1,0 +1,67 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Download Vosk Persian model
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/assets/model-fa
+          wget -q --show-progress \
+            https://alphacephei.com/vosk/models/vosk-model-small-fa-0.42.zip \
+            -O /tmp/vosk-model.zip
+          mkdir -p /tmp/vosk-model
+          unzip -q /tmp/vosk-model.zip -d /tmp/vosk-model
+          MODEL_DIR="/tmp/vosk-model/vosk-model-small-fa-0.42"
+          test -d "$MODEL_DIR"
+          cp -r "$MODEL_DIR"/. app/src/main/assets/model-fa/
+          test -f app/src/main/assets/model-fa/conf/model.conf
+          echo "Vosk model installed:"
+          du -sh app/src/main/assets/model-fa
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Validate Gradle repository configuration
+        run: |
+          set -euo pipefail
+          if grep -Rni --exclude-dir=.git "flatDir" app settings.gradle build.gradle; then
+            echo "flatDir must not be used with FAIL_ON_PROJECT_REPOS"
+            exit 1
+          fi
+          gradle --version
+
+      - name: Build debug APK
+        run: gradle --no-daemon --stacktrace clean assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-voice-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
