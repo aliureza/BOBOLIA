@@ -13,7 +13,7 @@ import java.util.UUID;
 public final class PersianTtsEngine {
     private static final String TAG = "PersianTtsEngine";
 
-    private final TextToSpeech tts;
+    private TextToSpeech tts;
     private final Listener initListener;
     private volatile boolean closed;
     private volatile boolean ready;
